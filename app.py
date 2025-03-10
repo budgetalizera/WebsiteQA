@@ -1,5 +1,7 @@
 import streamlit as st
+
 import requests
+import aiohttp
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import time
@@ -48,33 +50,105 @@ def is_valid_url(url):
     return re.match(regex, url)
 
 # Function to crawl website
+# def crawl_website(start_url, max_pages=50):
+#     visited = set()
+#     sitemap = []
+#     queue = [start_url]
+    
+#     while queue and len(visited) < max_pages:
+#         url = queue.pop(0)
+#         if url in visited:
+#             continue
+        
+#         try:
+#             response = requests.get(url, timeout=5)
+#             if response.status_code != 200:
+#                 continue
+#         except requests.RequestException:
+#             continue
+        
+#         visited.add(url)
+#         sitemap.append(url)
+        
+#         soup = BeautifulSoup(response.text, 'html.parser')
+#         for link in soup.find_all('a', href=True):
+#             absolute_url = urljoin(url, link['href'])
+#             if urlparse(absolute_url).netloc == urlparse(start_url).netloc and absolute_url not in visited:
+#                 queue.append(absolute_url)
+    
+#     return sitemap
+
 def crawl_website(start_url, max_pages=50):
     visited = set()
     sitemap = []
     queue = [start_url]
-    
+
     while queue and len(visited) < max_pages:
         url = queue.pop(0)
         if url in visited:
             continue
-        
+
         try:
-            response = requests.get(url, timeout=5)
+            response = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
             if response.status_code != 200:
                 continue
+            
+            # Ensure the content is HTML
+            if "text/html" not in response.headers.get("Content-Type", ""):
+                continue  
+
+            response.encoding = response.apparent_encoding  # Fix encoding
+            soup = BeautifulSoup(response.text, 'html.parser')
+
         except requests.RequestException:
+            continue
+        except Exception as e:
+            print(f"Error processing {url}: {e}")
             continue
         
         visited.add(url)
         sitemap.append(url)
-        
-        soup = BeautifulSoup(response.text, 'html.parser')
+
         for link in soup.find_all('a', href=True):
             absolute_url = urljoin(url, link['href'])
             if urlparse(absolute_url).netloc == urlparse(start_url).netloc and absolute_url not in visited:
                 queue.append(absolute_url)
-    
+
     return sitemap
+
+
+
+# async def crawl_website(start_url, max_pages=50):
+#     visited = set()
+#     sitemap = []
+#     queue = [start_url]
+
+#     async with aiohttp.ClientSession() as session:
+#         while queue and len(visited) < max_pages:
+#             url = queue.pop(0)
+#             if url in visited:
+#                 continue
+
+#             try:
+#                 async with session.get(url, timeout=5) as response:
+#                     if response.status != 200:
+#                         continue
+#                     html = await response.text()
+#             except aiohttp.ClientError:
+#                 continue
+
+#             visited.add(url)
+#             sitemap.append(url)
+
+#             soup = BeautifulSoup(html, 'html.parser')
+#             for link in soup.find_all('a', href=True):
+#                 absolute_url = urljoin(url, link['href'])
+#                 if urlparse(absolute_url).netloc == urlparse(start_url).netloc and absolute_url not in visited:
+#                     queue.append(absolute_url)
+
+#     return sitemap
+
+
 
 # Function for cleaning text
 def clean_text(soup):
@@ -101,12 +175,38 @@ def scrape_sitemap_urls(sitemap_urls):
     
     return scraped_data
 
+# async def scrape_sitemap_urls(sitemap_urls):
+#     scraped_data = []
+#     async with aiohttp.ClientSession() as session:
+#         for url in sitemap_urls:
+#             try:
+#                 async with session.get(url, timeout=5) as response:
+#                     if response.status != 200:
+#                         continue
+#                     html = await response.text()
+#             except aiohttp.ClientError:
+#                 continue
+
+#             soup = BeautifulSoup(html, 'html.parser')
+#             page_text = clean_text(soup)
+#             scraped_data.append(f"URL: {url}\n{page_text}\n\n")
+
+#     return scraped_data
+
+
+
 # Function to save scraped data
 def save_scraped_data(scraped_data, filename="scraped_data.txt"):
-    with open(filename, "w", encoding="utf-8") as f:
+    data_folder = "data"
+    os.makedirs(data_folder, exist_ok=True)  # Ensure the folder exists
+    
+    file_path = os.path.join(data_folder, filename)  # Save in "data" folder
+    
+    with open(file_path, "w", encoding="utf-8") as f:  # Overwrite file if it exists
         for data in scraped_data:
             f.write(data + "\n")
-    return filename
+    
+    return file_path  # Return the full file path
 
 # Initialize Pinecone
 def initialize_pinecone(index_name):
@@ -125,7 +225,8 @@ def initialize_pinecone(index_name):
 
 # Load Documents
 def load_documents(file_path):
-    reader = SimpleDirectoryReader(input_files=[file_path])
+    print("💀💀💀",file_path)
+    reader = SimpleDirectoryReader(input_dir="data")
     return reader.load_data()
 
 # Function to chunk the document using LlamaIndex
@@ -140,6 +241,17 @@ def generate_and_upload_embeddings(chunks, index):
         embedding = embed_model.get_text_embedding(chunk_text)
         metadata = {"chunk_id": i, "text": chunk_text}
         index.upsert(vectors=[(f"chunk-{i}", embedding, metadata)])
+        
+# async def generate_and_upload_embeddings(chunks, index):
+#     tasks = []
+#     for i, chunk in enumerate(chunks):
+#         chunk_text = chunk.text
+#         embedding = embed_model.get_text_embedding(chunk_text)
+#         metadata = {"chunk_id": i, "text": chunk_text}
+#         tasks.append(index.upsert(vectors=[(f"chunk-{i}", embedding, metadata)]))
+
+#     await asyncio.gather(*tasks)  # Run all upserts concurrently
+
 
 # Retrieve Related Sections from Pinecone
 def retrieve_related_sections(user_query, index):
@@ -207,6 +319,7 @@ if st.sidebar.button("Run Pipeline"):
                 filename = save_scraped_data(scraped_data)
 
                 st.write("📚 Loading documents...")
+                print(filename)
                 docs = load_documents(filename)
 
                 st.write("🔍 Splitting documents into chunks...")

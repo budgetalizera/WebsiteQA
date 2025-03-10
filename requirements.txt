@@ -11,6 +11,7 @@ python-dotenv
 # llama-index-core
 llama-index-vector-stores-pinecone
 llama-index-core
+llama-index-readers-file
 # llama-index-core-node-parser
 
 
