@@ -296,11 +296,8 @@ if st.sidebar.button("Run Pipeline"):
         st.sidebar.error("Please enter both a website URL and a query.")
     else:
         with st.status("🚀 Initializing the RAG Pipeline...", expanded=True) as status:
+            start_time = time.time()
             website_name = tldextract.extract(website_url).domain
-            # parsed_url = urlparse(website_url)
-            # domain_parts = parsed_url.netloc.split(".")
-            # website_name = domain_parts[1] if len(domain_parts) > 1 else domain_parts[0]
-
             st.write(f"🌐 Extracted website name: `{website_name}`")
 
             pc, index_name, already_exists = initialize_pinecone(website_name)
@@ -309,14 +306,21 @@ if st.sidebar.button("Run Pipeline"):
                 st.write(f"🔍 Index `{index_name}` already exists. Skipping data collection.")
                 response = query_rag_pipeline(user_query, pc.Index(name=index_name))
             else:
+                crawl_start = time.time()
                 st.write("🕷️ Crawling website for data...")
                 sitemap = crawl_website(website_url)
+                st.write(f"✅ Crawling completed in {time.time() - crawl_start:.2f} seconds.")
 
+                scrape_start = time.time()
                 st.write("📄 Scraping data from sitemap URLs...")
                 scraped_data = scrape_sitemap_urls(sitemap)
+                st.write(f"✅ Scraping completed in {time.time() - scrape_start:.2f} seconds.")
 
+                save_start = time.time()
                 st.write("💾 Saving scraped data...")
                 filename = save_scraped_data(scraped_data)
+                st.write(f"✅ Data saved in {time.time() - save_start:.2f} seconds.")
+
 
                 st.write("📚 Loading documents...")
                 print(filename)
@@ -325,15 +329,19 @@ if st.sidebar.button("Run Pipeline"):
                 st.write("🔍 Splitting documents into chunks...")
                 chunks = chunk_documents(docs)
 
+                embed_start = time.time()
                 st.write("🧠 Generating and uploading embeddings to Pinecone...")
                 generate_and_upload_embeddings(chunks, pc.Index(name=index_name))
+                st.write(f"✅ Embeddings uploaded in {time.time() - embed_start:.2f} seconds.")
 
                 st.write("✅ Data processing completed!")
-
+                query_start = time.time()
                 st.write("🤖 Running the RAG query...")
                 response = query_rag_pipeline(user_query, pc.Index(name=index_name))
+                st.write(f"✅ Query processed in {time.time() - query_start:.2f} seconds.")
 
-            status.update(label="✅ RAG Pipeline Completed!", state="complete")
+            total_time = time.time() - start_time
+            status.update(label=f"✅ RAG Pipeline Completed in {total_time:.2f} seconds!", state="complete")
 
         st.subheader("Generated Response:")
         st.write(response)
