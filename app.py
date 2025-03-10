@@ -14,7 +14,7 @@ from llama_index.core.node_parser import SentenceSplitter
 from dotenv import load_dotenv
 from pinecone import Pinecone
 from pinecone import ServerlessSpec
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
+from llama_index.core import VectorStoreIndex
 from llama_index.vector_stores.pinecone import PineconeVectorStore
 from llama_index.core import Settings
 from llama_index.core import StorageContext
