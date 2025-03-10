@@ -1,7 +1,6 @@
 import streamlit as st
-
+import tldextract
 import requests
-import aiohttp
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import time
@@ -297,9 +296,10 @@ if st.sidebar.button("Run Pipeline"):
         st.sidebar.error("Please enter both a website URL and a query.")
     else:
         with st.status("🚀 Initializing the RAG Pipeline...", expanded=True) as status:
-            parsed_url = urlparse(website_url)
-            domain_parts = parsed_url.netloc.split(".")
-            website_name = domain_parts[1] if len(domain_parts) > 1 else domain_parts[0]
+            website_name = tldextract.extract(website_url).domain
+            # parsed_url = urlparse(website_url)
+            # domain_parts = parsed_url.netloc.split(".")
+            # website_name = domain_parts[1] if len(domain_parts) > 1 else domain_parts[0]
 
             st.write(f"🌐 Extracted website name: `{website_name}`")
 
