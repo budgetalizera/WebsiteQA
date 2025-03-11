@@ -3,16 +3,16 @@ streamlit
 requests
 beautifulsoup4
 urllib3
-llama-index
+# llama-index
 llama-index-llms-groq
 llama-index-embeddings-huggingface
 llama-parse
 python-dotenv
+# llama-index-core
 llama-index-vector-stores-pinecone
 llama-index-core
 llama-index-readers-file
-tldextract
-
-
+tldextract # url domain name Extraction
+googletrans # google translate
 
 

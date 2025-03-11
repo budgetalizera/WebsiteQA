@@ -7,6 +7,7 @@ import time
 import re
 import os
 import sys
+import asyncio
 from llama_index.llms.groq import Groq
 from llama_parse import LlamaParse
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
@@ -19,6 +20,9 @@ from llama_index.core import VectorStoreIndex
 from llama_index.vector_stores.pinecone import PineconeVectorStore
 from llama_index.core import Settings
 from llama_index.core import StorageContext
+from googletrans import Translator, LANGUAGES
+
+##################################################################################################################
 
 # Load environment variables
 load_dotenv()
@@ -37,6 +41,9 @@ llm = Groq(api_key=api_key_g, model="llama3-8b-8192")
 # Setup Embedding Model (Single Instance)
 embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-mpnet-base-v2")
 
+
+##################################################################################################################
+
 # Function to validate URL
 def is_valid_url(url):
     regex = re.compile(
@@ -47,6 +54,32 @@ def is_valid_url(url):
         re.IGNORECASE
     )
     return re.match(regex, url)
+
+# Function for detecting language
+def detect_and_translate(text, target_language="en"):
+    translator = Translator()
+    
+    # Handle async coroutine execution properly
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    detected_lang_code = loop.run_until_complete(translator.detect(text)).lang
+    detected_lang = LANGUAGES.get(detected_lang_code, "Unknown")
+    # print("🔍 Detected language:", detected_lang)
+    translated_text = loop.run_until_complete(translator.translate(text, dest=target_language)).text
+    # print("🔤 Translated text:", translated_text)
+    
+    return detected_lang, translated_text
+
+def translate_query(text, target_language="en"):
+    translator = Translator()
+    
+    # Handle async coroutine execution properly
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    translated_text = loop.run_until_complete(translator.translate(text, dest=target_language)).text
+    return translated_text
 
 # Function to crawl website
 # def crawl_website(start_url, max_pages=50):
@@ -115,40 +148,6 @@ def crawl_website(start_url, max_pages=50):
 
     return sitemap
 
-
-
-# async def crawl_website(start_url, max_pages=50):
-#     visited = set()
-#     sitemap = []
-#     queue = [start_url]
-
-#     async with aiohttp.ClientSession() as session:
-#         while queue and len(visited) < max_pages:
-#             url = queue.pop(0)
-#             if url in visited:
-#                 continue
-
-#             try:
-#                 async with session.get(url, timeout=5) as response:
-#                     if response.status != 200:
-#                         continue
-#                     html = await response.text()
-#             except aiohttp.ClientError:
-#                 continue
-
-#             visited.add(url)
-#             sitemap.append(url)
-
-#             soup = BeautifulSoup(html, 'html.parser')
-#             for link in soup.find_all('a', href=True):
-#                 absolute_url = urljoin(url, link['href'])
-#                 if urlparse(absolute_url).netloc == urlparse(start_url).netloc and absolute_url not in visited:
-#                     queue.append(absolute_url)
-
-#     return sitemap
-
-
-
 # Function for cleaning text
 def clean_text(soup):
     for script in soup(["script", "style"]):
@@ -173,26 +172,6 @@ def scrape_sitemap_urls(sitemap_urls):
         scraped_data.append(f"URL: {url}\n{page_text}\n\n")
     
     return scraped_data
-
-# async def scrape_sitemap_urls(sitemap_urls):
-#     scraped_data = []
-#     async with aiohttp.ClientSession() as session:
-#         for url in sitemap_urls:
-#             try:
-#                 async with session.get(url, timeout=5) as response:
-#                     if response.status != 200:
-#                         continue
-#                     html = await response.text()
-#             except aiohttp.ClientError:
-#                 continue
-
-#             soup = BeautifulSoup(html, 'html.parser')
-#             page_text = clean_text(soup)
-#             scraped_data.append(f"URL: {url}\n{page_text}\n\n")
-
-#     return scraped_data
-
-
 
 # Function to save scraped data
 def save_scraped_data(scraped_data, filename="scraped_data.txt"):
@@ -224,7 +203,7 @@ def initialize_pinecone(index_name):
 
 # Load Documents
 def load_documents(file_path):
-    print("💀💀💀",file_path)
+    # print("💀💀💀",file_path)
     reader = SimpleDirectoryReader(input_dir="data")
     return reader.load_data()
 
@@ -241,17 +220,6 @@ def generate_and_upload_embeddings(chunks, index):
         metadata = {"chunk_id": i, "text": chunk_text}
         index.upsert(vectors=[(f"chunk-{i}", embedding, metadata)])
         
-# async def generate_and_upload_embeddings(chunks, index):
-#     tasks = []
-#     for i, chunk in enumerate(chunks):
-#         chunk_text = chunk.text
-#         embedding = embed_model.get_text_embedding(chunk_text)
-#         metadata = {"chunk_id": i, "text": chunk_text}
-#         tasks.append(index.upsert(vectors=[(f"chunk-{i}", embedding, metadata)]))
-
-#     await asyncio.gather(*tasks)  # Run all upserts concurrently
-
-
 # Retrieve Related Sections from Pinecone
 def retrieve_related_sections(user_query, index):
     query_vector = embed_model.get_text_embedding(user_query)
@@ -259,11 +227,17 @@ def retrieve_related_sections(user_query, index):
     return [match["metadata"]["text"] for match in response.get("matches", [])]
 
 # Generate a Response from Context
-def generate_response(user_query, relevant_sections):
+def generate_response(user_query, relevant_sections, user_language="english"):
     context = "\n\n".join(relevant_sections)
+    
+    instruction_message = (
+        f"The requested information is currently unavailable on the website. "
+        f"Please visit the official website for further details. (Response in {user_language} language with proper meaningful way.)"
+    )
+
     prompt = f"""
-        You are an expert in Extracting data from websites.
-        Use the following context to answer the user's query.
+        You are an expert in extracting data from websites.
+        Use the following context to answer the user's query in the requested language.
         
         Context:
         {context}
@@ -271,24 +245,40 @@ def generate_response(user_query, relevant_sections):
         User Query:
         {user_query}
         
-        Provide a clear and structured response.
+        Provide a clear and structured response in the {user_language} language.
+        
+        Important Instructions:
+        - Only answer the question if it is relevant to the provided context.
+        - If the query is unrelated to the given context, respond with:
+          "{instruction_message}"
+        - Do not generate assumptions or hallucinate answers beyond the provided information.
     """
+    
     return llm.complete(prompt=prompt).text
 
 # Query the RAG system
-def query_rag_pipeline(user_query, index):
+def query_rag_pipeline(user_query, index, user_language="en"):
     relevant_sections = retrieve_related_sections(user_query, index)
-    return generate_response(user_query, relevant_sections)
+    # print("🤞🤞🤞🤞🤞", user_language)
+    return generate_response(user_query, relevant_sections, user_language)
 
 
 
 
 
 ######################################### Streamlit UI######################################################
+
+# Streamlit UI
 st.title("Web Scraping & RAG System")
 st.sidebar.header("Settings")
 
 website_url = st.sidebar.text_input("Enter Website URL")
+
+# Language selection dropdown (Default: Detect Language)
+language_options = ["Detect Language", "English", "French", "Spanish", "German", "Chinese", "Hindi"]
+selected_language = st.sidebar.selectbox("Select Language", language_options, index=0)
+# print("❤️💀❤️ Selected Language:", selected_language)
+
 user_query = st.sidebar.text_input("Enter Query")
 
 if st.sidebar.button("Run Pipeline"):
@@ -297,6 +287,19 @@ if st.sidebar.button("Run Pipeline"):
     else:
         with st.status("🚀 Initializing the RAG Pipeline...", expanded=True) as status:
             start_time = time.time()
+            
+            # Detect language if default option is selected
+            if selected_language == "Detect Language":
+                detected_lang, llm_query = detect_and_translate(user_query, "en")
+                st.write(f"🔍 Detected language: `{detected_lang}`")
+            else:
+                detected_lang = selected_language
+                st.write(f"🔍 Selected language: `{detected_lang}`")
+                llm_query = translate_query(user_query)  # Use the query as-is if language is manually selected
+
+            st.write(f"🔤 Final query in for LLM: `{llm_query}`")
+            
+            
             website_name = tldextract.extract(website_url).domain
             st.write(f"🌐 Extracted website name: `{website_name}`")
 
@@ -304,7 +307,7 @@ if st.sidebar.button("Run Pipeline"):
 
             if already_exists:
                 st.write(f"🔍 Index `{index_name}` already exists. Skipping data collection.")
-                response = query_rag_pipeline(user_query, pc.Index(name=index_name))
+                response = query_rag_pipeline(llm_query, pc.Index(name=index_name), detected_lang)
             else:
                 crawl_start = time.time()
                 st.write("🕷️ Crawling website for data...")
@@ -321,9 +324,7 @@ if st.sidebar.button("Run Pipeline"):
                 filename = save_scraped_data(scraped_data)
                 st.write(f"✅ Data saved in {time.time() - save_start:.2f} seconds.")
 
-
                 st.write("📚 Loading documents...")
-                print(filename)
                 docs = load_documents(filename)
 
                 st.write("🔍 Splitting documents into chunks...")
@@ -337,7 +338,7 @@ if st.sidebar.button("Run Pipeline"):
                 st.write("✅ Data processing completed!")
                 query_start = time.time()
                 st.write("🤖 Running the RAG query...")
-                response = query_rag_pipeline(user_query, pc.Index(name=index_name))
+                response = query_rag_pipeline(llm_query, pc.Index(name=index_name), detected_lang)
                 st.write(f"✅ Query processed in {time.time() - query_start:.2f} seconds.")
 
             total_time = time.time() - start_time
@@ -345,3 +346,4 @@ if st.sidebar.button("Run Pipeline"):
 
         st.subheader("Generated Response:")
         st.write(response)
+
