@@ -1,1 +1,27 @@
-python-3.12
+torch 
+streamlit
+requests
+beautifulsoup4
+urllib3
+# llama-index
+llama-index-llms-groq
+llama-index-embeddings-huggingface
+llama-parse
+python-dotenv
+# llama-index-core
+llama-index-vector-stores-pinecone
+llama-index-core
+llama-index-readers-file
+tldextract # url domain name Extraction
+googletrans # google translate
+transformers 
+soundfile 
+parler-tts
+crawl4ai # AI Crawling
+langdetect # language detection
+deep-translator # translation
+pydub
+ffmpeg-python
+markdown
+kokoro>=0.9.2
+TTS # Coqui.ai TTS library
