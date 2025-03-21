@@ -84,11 +84,14 @@ load_dotenv()
     # Loading API keys
 api_key_g = os.getenv("GROQ_API_KEY")
 api_key_p = os.getenv("PINECONE_API_KEY")
+hf_token =  os.getenv("HF_TOKEN")
 
 if not api_key_g:
         raise ValueError("Missing GROQ API Key. Set GROQ_API_KEY in .env")
 if not api_key_p:
         raise ValueError("Missing PINECONE API Key. Set PINECONE_API_KEY in .env")
+if not hf_token:
+        raise ValueError("Missing hf_token Key. Set hf_token in .env")
 
 
 #! Model Loading / Intialization -------------------------------------------------------------------------------------------------
@@ -110,9 +113,9 @@ def initialize_app():
     st.write("🧩 **Loading SeamlessM4T model...**")
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     MODEL_NAME = "ai4bharat/indic-seamless"
-    s_model = SeamlessM4Tv2ForSpeechToText.from_pretrained(MODEL_NAME)
-    s_processor = SeamlessM4TFeatureExtractor.from_pretrained(MODEL_NAME)
-    s_tokenizer = SeamlessM4TTokenizer.from_pretrained(MODEL_NAME)
+    s_model = SeamlessM4Tv2ForSpeechToText.from_pretrained(MODEL_NAME , token=hf_token)
+    s_processor = SeamlessM4TFeatureExtractor.from_pretrained(MODEL_NAME, token=hf_token)
+    s_tokenizer = SeamlessM4TTokenizer.from_pretrained(MODEL_NAME, token=hf_token)
     st.write("✅ **SeamlessM4T model loaded successfully.**")
 
 
