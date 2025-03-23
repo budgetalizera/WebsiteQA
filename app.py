@@ -661,7 +661,7 @@ if st.sidebar.button(f"Ask anything about {website_name}"):
                     for gender, speaker in speakers:
 
                          st.write(f"Detected Language for speech Generation: **{language}**")
-                         with st.spinner("🚀 Loading models and initializing application..."):
+                         with st.spinner("🚀 Generating Speech by {gender} speaker"):
                             output_path, audio_data = generate_audio(result, tts_lang_code, speaker, gender)
                          
                             if audio_data is not None:
