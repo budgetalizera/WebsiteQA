@@ -661,12 +661,12 @@ if st.sidebar.button(f"Ask anything about {website_name}"):
                     for gender, speaker in speakers:
 
                          st.write(f"Detected Language for speech Generation: **{language}**")
-                         st.write(f"Generated speech by **{gender}** speaker.")
-                         output_path, audio_data = generate_audio(result, tts_lang_code, speaker, gender)
+                         with st.spinner("🚀 Loading models and initializing application..."):
+                            output_path, audio_data = generate_audio(result, tts_lang_code, speaker, gender)
                          
-                         if audio_data is not None:
-                           st.subheader(f"🎧 Generated Speech in {speaker} ({gender}):")
-                           st.audio(output_path)
+                            if audio_data is not None:
+                                st.subheader(f"🎧 Generated Speech in {speaker} ({gender}):")
+                                st.audio(output_path)
                
                     if audio_data is None:
                         st.error("Something went wrong for generating audio. Please try again.")   
