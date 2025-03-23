@@ -396,6 +396,7 @@ def generate_audio(text, lang_code, voice, gender):
         pipeline = KPipeline(lang_code=lang_code)
     except Exception as e:
         print(f"Error initializing pipeline: {e}")
+        st.error("Something went wrong for generating audio. Please try again.")
         return None, None
     
     try:
@@ -407,7 +408,7 @@ def generate_audio(text, lang_code, voice, gender):
             all_audio.append(audio)
 
         final_audio = torch.cat(all_audio, dim=0)
-        output_path = f"{voice}_{gender}.wav"
+        output_path = f"Audio_speech/{voice}_{gender}.wav"
         print(f"✔ Audio generated successfully")
         sf.write(output_path, final_audio.numpy(), 24000)
         print(f"✔ Audio saved successfully")
