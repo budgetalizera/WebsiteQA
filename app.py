@@ -97,12 +97,12 @@ if not hf_token:
         st.error("❌ Missing Hugging Face Token. Set hf_token in .env")
         raise ValueError("Missing hf_token Key. Set hf_token in .env")
 
-try:
-    nlp = spacy.load("en_core_web_sm")
-    st.success("✅ SpaCy model 'en_core_web_sm' loaded successfully!")
-except OSError as e:
-    st.error("❌ Error: SpaCy model 'en_core_web_sm' not found!")
-    raise RuntimeError("SpaCy model 'en_core_web_sm' is not installed.") from e
+# try:
+#     nlp = spacy.load("en_core_web_sm")
+#     st.success("✅ SpaCy model 'en_core_web_sm' loaded successfully!")
+# except OSError as e:
+#     st.error("❌ Error: SpaCy model 'en_core_web_sm' not found!")
+#     raise RuntimeError("SpaCy model 'en_core_web_sm' is not installed.") from e
 
 
 
