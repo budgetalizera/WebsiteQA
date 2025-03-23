@@ -1,3 +1,5 @@
+#! Cheking if it is main url than scrap whole data_____________
+
 import streamlit as st
 import tldextract
 import requests
@@ -34,9 +36,8 @@ from deep_translator import GoogleTranslator
 from markdown import markdown
 from langdetect import detect
 from kokoro import KPipeline
-from IPython.display import Audio   
-import os
-import spacy
+from IPython.display import Audio
+
 
 
 #! Constant________________________________________________________________________________________________________________________________________________________
@@ -88,18 +89,21 @@ api_key_p = os.getenv("PINECONE_API_KEY")
 hf_token =  os.getenv("HF_TOKEN")
 
 if not api_key_g:
+        st.error("❌ Missing GROQ API Key. Set GROQ_API_KEY in .env")
         raise ValueError("Missing GROQ API Key. Set GROQ_API_KEY in .env")
 if not api_key_p:
+        st.error("❌ Missing PINECONE API Key. Set PINECONE_API_KEY in .env")
         raise ValueError("Missing PINECONE API Key. Set PINECONE_API_KEY in .env")
 if not hf_token:
+        st.error("❌ Missing Hugging Face Token. Set hf_token in .env")
         raise ValueError("Missing hf_token Key. Set hf_token in .env")
 
+MODEL_NAME = "ai4bharat/indic-seamless"
+EMBED_MODEL_NAME =  "sentence-transformers/all-mpnet-base-v2"
 
-# os.system("pip install en-core-web-sm")
-# print("en-core-web-sm installing....")
-# spacy.load("en_core_web_sm")
-# print("en-core-web-sm loading....")
-
+BASE_MODEL_DIR = "Models"
+EMBEDDING_MODEL_PATH = os.path.join(BASE_MODEL_DIR, "sentence-transformers/all-mpnet-base-v2")
+SEAMLESS_MODEL_PATH = os.path.join(BASE_MODEL_DIR, "ai4bharat/indic-seamless")
 
 #! Model Loading / Intialization -------------------------------------------------------------------------------------------------
 
@@ -109,26 +113,36 @@ if not hf_token:
 def initialize_app():
     """Initialize and cache models, API keys"""
     st.write("🔄 **Initializing the app...**")
-    
+
     # Load LLaMA models and embedding model
-    llm = Groq(api_key=api_key_g, model="llama3-8b-8192", temperature = 0.17 )
+    llm = Groq(api_key=api_key_g, model="llama3-8b-8192", temperature=0.09)
     st.write("✅ **LLaMA model loaded successfully.**")
-    embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-mpnet-base-v2")
+    
+    embed_model = HuggingFaceEmbedding(model_name=EMBED_MODEL_NAME)
     st.write("✅ **HuggingFace embedding model loaded successfully.**")
 
     # Load SeamlessM4T model
     st.write("🧩 **Loading SeamlessM4T model...**")
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    MODEL_NAME = "ai4bharat/indic-seamless"
-    s_model = SeamlessM4Tv2ForSpeechToText.from_pretrained(MODEL_NAME , token=hf_token)
-    s_processor = SeamlessM4TFeatureExtractor.from_pretrained(MODEL_NAME, token=hf_token)
-    s_tokenizer = SeamlessM4TTokenizer.from_pretrained(MODEL_NAME, token=hf_token)
-    st.write("✅ **SeamlessM4T model loaded successfully.**")
 
+    # Check if model is already downloaded
+    if os.path.exists(SEAMLESS_MODEL_PATH):
+        st.write("✅ **SeamlessM4T model already exists. Loading from disk...**")
+        s_model = SeamlessM4Tv2ForSpeechToText.from_pretrained(SEAMLESS_MODEL_PATH)
+        s_processor = SeamlessM4TFeatureExtractor.from_pretrained(SEAMLESS_MODEL_PATH)
+        s_tokenizer = SeamlessM4TTokenizer.from_pretrained(SEAMLESS_MODEL_PATH)
+    else:
+        st.write("⬇️ **Downloading SeamlessM4T model...**")
+        s_model = SeamlessM4Tv2ForSpeechToText.from_pretrained(MODEL_NAME, token=hf_token)
+        s_model.save_pretrained(SEAMLESS_MODEL_PATH)
+        s_processor = SeamlessM4TFeatureExtractor.from_pretrained(MODEL_NAME, token=hf_token)
+        s_processor.save_pretrained(SEAMLESS_MODEL_PATH)
+        s_tokenizer = SeamlessM4TTokenizer.from_pretrained(MODEL_NAME, token=hf_token)
+        s_tokenizer.save_pretrained(SEAMLESS_MODEL_PATH)
+        st.write("✅ **SeamlessM4T model downloaded successfully.**")
 
     st.write("🎉 **App initialization complete.**")
     return llm, embed_model, s_model, s_processor, s_tokenizer, device
-
 
 
 #! SCRAPPING AND RESPONSE GENERATION THROUGH RAG PIPELINE----------------------------------------------------------------------------
@@ -169,10 +183,27 @@ def translate_query(text, target_language="en"):
     
     return translated_text
 
+# Function to extract the base domain
+def get_base_domain(url):
+    parsed_url = urlparse(url)
+    return parsed_url.scheme + "://" + parsed_url.netloc
+
+
+def is_main_page(url, base_url):
+    base_domain = get_base_domain(base_url)  
+    return url == base_domain or url == base_domain.rstrip('/') + '/'
+
+
+# Function to crawl website
 def crawl_website(start_url, max_pages=50):
+    isMain = is_main_page(start_url, start_url)  
+
     visited = set()
     sitemap = []
     queue = [start_url]
+
+    base_domain = get_base_domain(start_url)  
+
 
     while queue and len(visited) < max_pages:
         url = queue.pop(0)
@@ -198,14 +229,24 @@ def crawl_website(start_url, max_pages=50):
             continue
         
         visited.add(url)
-        sitemap.append(url)
 
-        for link in soup.find_all('a', href=True):
-            absolute_url = urljoin(url, link['href'])
-            if urlparse(absolute_url).netloc == urlparse(start_url).netloc and absolute_url not in visited:
-                queue.append(absolute_url)
 
-    return sitemap
+        if isMain:
+            sitemap.append(url)
+            for link in soup.find_all('a', href=True):
+                absolute_url = urljoin(url, link['href'])
+                if urlparse(absolute_url).netloc == urlparse(base_domain).netloc and absolute_url not in visited:
+                    queue.append(absolute_url)
+        else:
+            sitemap.append(url)
+            break
+
+    with open("sitemap.txt", "w") as f:
+        for url in sitemap:
+            f.write(url + "\n")
+
+    return sitemap, isMain
+    
 # Function for cleaning text
 def clean_text(soup):
     for script in soup(["script", "style"]):
@@ -215,7 +256,6 @@ def clean_text(soup):
 # Function for scraping data from sitemap URLs
 def scrape_sitemap_urls(sitemap_urls):
     scraped_data = []
-    
     
     for url in sitemap_urls:
         try:
@@ -242,14 +282,23 @@ def save_scraped_data(scraped_data, filename="scraped_data.txt"):
         for data in scraped_data:
             f.write(data + "\n")
     
-    return file_path  # Return the full file path
+    return file_path  
 
 # Initialize Pinecone
 def initialize_pinecone(index_name):
     pc = Pinecone(api_key=api_key_p)
     try:
         pc.describe_index(index_name)
-        return pc, index_name, True
+        print(f"Index {index_name} already exists. Deleting it.")
+        pc.delete_index(index_name)
+        # Now create the index
+        pc.create_index(
+            name=index_name,
+            dimension=768,
+            metric="euclidean",
+            spec=ServerlessSpec(cloud="aws", region="us-east-1"),
+        )
+        return pc, index_name, False
     except Exception:
         pc.create_index(
             name=index_name,
@@ -280,7 +329,7 @@ def generate_and_upload_embeddings(chunks, index):
 # Retrieve Related Sections from Pinecone
 def retrieve_related_sections(user_query, index):
     query_vector = embed_model.get_text_embedding(user_query)
-    response = index.query(vector=query_vector, top_k=10, include_metadata=True)
+    response = index.query(vector=query_vector, top_k=3, include_metadata=True)
     return [match["metadata"]["text"] for match in response.get("matches", [])]
 
 # Generate a Response from Context
@@ -396,7 +445,6 @@ def generate_audio(text, lang_code, voice, gender):
         pipeline = KPipeline(lang_code=lang_code)
     except Exception as e:
         print(f"Error initializing pipeline: {e}")
-        st.error("Something went wrong for generating audio. Please try again.")
         return None, None
     
     try:
@@ -408,7 +456,7 @@ def generate_audio(text, lang_code, voice, gender):
             all_audio.append(audio)
 
         final_audio = torch.cat(all_audio, dim=0)
-        output_path = f"Audio_speech/{voice}_{gender}.wav"
+        output_path = f"{voice}_{gender}.wav"
         print(f"✔ Audio generated successfully")
         sf.write(output_path, final_audio.numpy(), 24000)
         print(f"✔ Audio saved successfully")
@@ -455,11 +503,15 @@ def handle_text_query():
         # Crawl, scrape, and process data if index doesn't exist
         crawl_start = time.time()
         st.write("🕷️ Crawling website for data...")
-        sitemap = crawl_website(website_url)
+        sitemap, isMain = crawl_website(website_url)
         st.write(f"✅ Crawling completed in {time.time() - crawl_start:.2f} seconds.")
 
+        
         scrape_start = time.time()
-        st.write("📄 Scraping data from sitemap URLs...")
+        if isMain:
+            st.write("📄 Scraping data from entire Website..")
+        else:
+           st.write("📄 Scraping data from specific website page..") 
         scraped_data = scrape_sitemap_urls(sitemap)
         st.write(f"✅ Scraping completed in {time.time() - scrape_start:.2f} seconds.")
 
@@ -662,12 +714,12 @@ if st.sidebar.button(f"Ask anything about {website_name}"):
                     for gender, speaker in speakers:
 
                          st.write(f"Detected Language for speech Generation: **{language}**")
-                         with st.spinner("🚀 Generating Speech by {gender} speaker"):
-                            output_path, audio_data = generate_audio(result, tts_lang_code, speaker, gender)
+                         st.write(f"Generated speech by **{gender}** speaker.")
+                         output_path, audio_data = generate_audio(result, tts_lang_code, speaker, gender)
                          
-                            if audio_data is not None:
-                                st.subheader(f"🎧 Generated Speech in {speaker} ({gender}):")
-                                st.audio(output_path)
+                         if audio_data is not None:
+                           st.subheader(f"🎧 Generated Speech in {speaker} ({gender}):")
+                           st.audio(output_path)
                
                     if audio_data is None:
                         st.error("Something went wrong for generating audio. Please try again.")   
