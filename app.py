@@ -95,10 +95,6 @@ if not hf_token:
         raise ValueError("Missing hf_token Key. Set hf_token in .env")
 
 
-# os.system("pip install en-core-web-sm")
-# print("en-core-web-sm installing....")
-# spacy.load("en_core_web_sm")
-# print("en-core-web-sm loading....")
 
 
 #! Model Loading / Intialization -------------------------------------------------------------------------------------------------
