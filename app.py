@@ -88,12 +88,21 @@ api_key_p = os.getenv("PINECONE_API_KEY")
 hf_token =  os.getenv("HF_TOKEN")
 
 if not api_key_g:
+        st.error("❌ Missing GROQ API Key. Set GROQ_API_KEY in .env")
         raise ValueError("Missing GROQ API Key. Set GROQ_API_KEY in .env")
 if not api_key_p:
+        st.error("❌ Missing PINECONE API Key. Set PINECONE_API_KEY in .env")
         raise ValueError("Missing PINECONE API Key. Set PINECONE_API_KEY in .env")
 if not hf_token:
+        st.error("❌ Missing Hugging Face Token. Set hf_token in .env")
         raise ValueError("Missing hf_token Key. Set hf_token in .env")
 
+try:
+    nlp = spacy.load("en_core_web_sm")
+    st.success("✅ SpaCy model 'en_core_web_sm' loaded successfully!")
+except OSError as e:
+    st.error("❌ Error: SpaCy model 'en_core_web_sm' not found!")
+    raise RuntimeError("SpaCy model 'en_core_web_sm' is not installed.") from e
 
 
 
