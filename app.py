@@ -35,7 +35,8 @@ from markdown import markdown
 from langdetect import detect
 from kokoro import KPipeline
 from IPython.display import Audio   
-
+import os
+import spacy
 
 
 #! Constant________________________________________________________________________________________________________________________________________________________
@@ -92,6 +93,12 @@ if not api_key_p:
         raise ValueError("Missing PINECONE API Key. Set PINECONE_API_KEY in .env")
 if not hf_token:
         raise ValueError("Missing hf_token Key. Set hf_token in .env")
+
+
+os.system("pip install en-core-web-sm")
+print("en-core-web-sm installing....")
+spacy.load("en_core_web_sm")
+print("en-core-web-sm loading....")
 
 
 #! Model Loading / Intialization -------------------------------------------------------------------------------------------------
