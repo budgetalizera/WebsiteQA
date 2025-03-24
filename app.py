@@ -373,10 +373,18 @@ async def detect_and_fallback(text, target_lang_code="en"):
     
     if detected_lang_code not in supported_languages or detected_lang_code == "unknown":
         try:
-            translated_text = await asyncio.to_thread(
-                GoogleTranslator(source="auto", target=target_lang_code).translate, text
-            )
+
+            # translated_text = await asyncio.to_thread(
+            #     GoogleTranslator(source="auto", target=target_lang_code).translate, text
+            # )
             target_language = LANGUAGE_MAP.get(target_lang_code, "English")
+            translator = Translator()
+            # loop =  await asyncio.new_event_loop()
+            # await asyncio.set_event_loop(loop)
+            # translated_text = loop.run_until_complete(translator.translate(response, dest=target_language)).text
+            translated_text = await translator.translate(text, src='auto', dest=target_language)
+            translated_text = translated_text.text
+
             tts_lang_code = TTS_LANG_CODE_MAP.get(target_lang_code, "unknown")
             is_fallback = True 
             return target_lang_code, target_language, translated_text, tts_lang_code, is_fallback
@@ -413,7 +421,7 @@ def generate_audio(text, lang_code, voice, gender):
             all_audio.append(audio)
 
         final_audio = torch.cat(all_audio, dim=0)
-        output_path = f"Audio_speech/{voice}_{gender}.wav"
+        output_path = f"{voice}_{gender}.wav"
         print(f"✔ Audio generated successfully")
         sf.write(output_path, final_audio.numpy(), 24000)
         print(f"✔ Audio saved successfully")
@@ -671,7 +679,7 @@ if st.sidebar.button(f"Ask anything about {website_name}"):
                             output_path, audio_data = generate_audio(result, tts_lang_code, speaker, gender)
                          
                             if audio_data is not None:
-                                st.subheader(f"🎧 Generated Speech in {speaker} ({gender}):")
+                                st.subheader(f"🎧 Generated Speech by {speaker} ({gender}):")
                                 st.audio(output_path)
                
                     if audio_data is None:
