@@ -1,0 +1,7 @@
+build-essential
+python3-dev
+libatlas-base-dev
+libblas-dev
+liblapack-dev
+curl
+git
