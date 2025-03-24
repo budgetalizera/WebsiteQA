@@ -16,6 +16,7 @@ tldextract # url domain name Extraction
 googletrans # google translate
 transformers 
 soundfile 
+parler-tts
 crawl4ai # AI Crawling
 langdetect # language detection
 deep-translator # translation
