@@ -27,7 +27,6 @@ from transformers import (
 import tempfile
 import torch
 import soundfile as sf
-from parler_tts import ParlerTTSForConditionalGeneration
 from transformers import AutoTokenizer
 from langdetect import detect, DetectorFactory
 from deep_translator import GoogleTranslator
